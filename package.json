@@ -1,0 +1,10 @@
+{
+  "name": "reid-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "spectrum-ts": "^12.8.0",
+    "@vercel/functions": "^3.9.8"
+  }
+}
