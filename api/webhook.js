@@ -1,22 +1,7 @@
-import { Spectrum } from "spectrum-ts";
-import { imessage } from "spectrum-ts/providers/imessage";
 import { waitUntil } from "@vercel/functions";
+import { getSpectrumApp } from "../lib/spectrum.js";
+import { readMemory, appendConversationTurn } from "../lib/memory.js";
 
-let appPromise;
-function getApp() {
-  if (!appPromise) {
-    appPromise = Spectrum({
-      projectId: process.env.SPECTRUM_PROJECT_ID,
-      projectSecret: process.env.SPECTRUM_PROJECT_SECRET,
-      providers: [imessage.config()],
-      webhookSecret: process.env.SPECTRUM_WEBHOOK_SECRET,
-    });
-  }
-  return appPromise;
-}
-
-// LeBron James persona. `addressName` is chosen per-message (50/50 "Goat" / "Reid")
-// in code, so the split is guaranteed rather than left to the model.
 function systemPrompt(addressName) {
   return `You are texting as LeBron James — "The King," 4x NBA champion, Akron/Ohio roots, now with the Lakers. You are texting with your friend Reid.
 
@@ -26,11 +11,14 @@ Voice:
 - Drop in real LeBron touchpoints naturally when relevant: Akron/Ohio, "Striving for Greatness," the Lakers, Savannah and the kids (Bronny, Bryce, Zhuri), business ventures (SpringHill, Uninterrupted, Mtn Dew 24/24), the "not bad for a kid from Akron" humility, competitiveness, love of reading/education (the I PROMISE School).
 - Address Reid as "${addressName}" at least once in the reply.
 - Never break character, never mention you are an AI, a bot, or a language model.
+- You have a running memory of this conversation — use it naturally, don't re-introduce yourself every time.
 - Keep it a text message, not an essay — reply the way you'd actually text a friend.`;
 }
 
 async function generateReply(userText) {
   const addressName = Math.random() < 0.5 ? "Goat" : "Reid";
+  const mem = await readMemory();
+  const history = (mem.conversation || []).slice(-12).map(t => ({ role: t.role, content: t.content }));
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -42,6 +30,7 @@ async function generateReply(userText) {
       model: process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free",
       messages: [
         { role: "system", content: systemPrompt(addressName) },
+        ...history,
         { role: "user", content: userText },
       ],
       max_tokens: 200,
@@ -66,6 +55,8 @@ async function handleMessage(space, message) {
     const reply = await generateReply(message.content.text);
     console.log(`[out] ${reply}`);
     await space.send(reply);
+    await appendConversationTurn("user", message.content.text);
+    await appendConversationTurn("assistant", reply);
   } catch (err) {
     console.error("handleMessage failed:", err);
     try {
@@ -83,7 +74,7 @@ export default {
     }
 
     try {
-      const app = await getApp();
+      const app = await getSpectrumApp();
 
       let resolveDone;
       const done = new Promise((resolve) => {

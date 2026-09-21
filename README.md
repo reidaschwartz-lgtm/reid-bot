@@ -1,38 +1,48 @@
-# reid-bot — LeBron James iMessage auto-reply agent
+# reid-bot — LeBron James iMessage agent + Gmail watch/match/react
 
-Hosted on Vercel. Listens on your Spectrum iMessage line (+1 415 605-5838)
-via a webhook and auto-replies to every incoming text in a LeBron James
-voice, using OpenRouter's free Gemma model. Nothing to run locally —
-it's live 24/7 as long as the Vercel project exists.
+Hosted on Vercel: https://reid-bot.vercel.app
 
-## Live
+## What's in here
 
-- App: https://reid-bot.vercel.app
-- Webhook endpoint: https://reid-bot.vercel.app/api/webhook (registered with Spectrum)
-- Vercel project: reid-bot (personal account)
+- `api/webhook.js` — Spectrum webhook. Every incoming iMessage on
+  +1 415 605-5838 gets a LeBron-voiced reply from OpenRouter
+  (`google/gemma-4-31b-it:free`), with naive conversation memory
+  (`lib/memory.js`, a JSON blob in Vercel Blob storage) so it remembers
+  recent exchanges. Addresses you as "Reid" or "Goat" on a coded 50/50 split.
+- `api/composio-webhook.js` — WATCH/MATCH/REACT dispatcher for Composio
+  trigger events. Currently wired to WATCH new-message events on both Gmail
+  accounts (personal + Cornell), MATCH on med-school-application keywords
+  (AMCAS, secondary, interview, acceptance, waitlist, ...), REACT by texting
+  you a heads-up via the LeBron bot. Never sends email or acts on your
+  accounts — notification only.
+- `api/composio-setup.js` / `api/setup.js` — one-time (re-runnable) setup
+  endpoints that register the Composio and Spectrum webhook subscriptions.
+  Both gated by SETUP_TOKEN.
+- `api/composio-diag.js` — read-only diagnostic (lists trigger types per
+  toolkit). Gated by SETUP_TOKEN.
+- `lib/spectrum.js` — shared Spectrum app + `textReid()` helper for
+  proactively texting Reid outside of an inbound-message context.
+- `lib/memory.js` — naive persistent memory: one JSON blob, read-modify-
+  written on every call. No locking — fine for low traffic, not safe under
+  concurrent writes.
 
-## How it's wired
+## Connected accounts (Composio)
 
-- `api/webhook.js` — receives Spectrum's webhook POST for every incoming
-  text, verifies the signature, generates a reply via OpenRouter
-  (`google/gemma-4-31b-it:free`) with a LeBron persona, and sends it back.
-  Addresses you as "Reid" or "Goat" on a coded 50/50 split.
-- `api/setup.js` — registers `/api/webhook` with Spectrum and returns the
-  webhook signing secret. Already run once; re-running it (with the
-  SETUP_TOKEN) just re-registers the same URL, harmless.
-- Env vars live directly in the Vercel project (OPENROUTER_API_KEY,
-  OPENROUTER_MODEL, SPECTRUM_PROJECT_ID, SPECTRUM_PROJECT_SECRET,
-  SPECTRUM_WEBHOOK_SECRET, SETUP_TOKEN). `.env` here is just a local copy
-  for reference if you ever redeploy from source.
+user_id: `pg-test-5d1d3e30-13e4-444b-8867-4b0fc1324a55` (shared across all
+connections below)
 
-## Changing the persona / behavior
+- Gmail (personal, reidaschwartz@gmail.com): `ca_VSm0vOj7kV7A`
+- Gmail (Cornell, ras653@cornell.edu): `ca_7_fjWhGLGtbv`
+- Google Maps: `ca_qiOyROX3CWPK` — connected, not yet wired to any
+  automation (Maps has no push triggers; it's pull-only, ready for an
+  on-demand tool call whenever you want one).
+- NewsAPI: `ca_mSStmYF0JkFz` — connected, not yet wired to anything.
 
-Edit `api/webhook.js` (the `systemPrompt` function), then redeploy —
-either by pushing to a connected git repo, or ask Claude to push a new
-deployment via the Vercel connector.
+## Changing the Gmail match rule
 
-## Notes
+Edit `KEYWORDS` in `api/composio-webhook.js`, then redeploy.
 
-- Replies to literally anyone who texts that number, no filtering.
-- Cold starts: the first message after a quiet period may take a couple
-  extra seconds to reply while the function spins up.
+## Env vars
+
+All live directly in the Vercel project. `.env` here is a local reference
+copy only (gitignored) — keep it that way, don't commit it.

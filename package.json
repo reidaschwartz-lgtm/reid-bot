@@ -5,6 +5,8 @@
   "type": "module",
   "dependencies": {
     "spectrum-ts": "^12.8.0",
-    "@vercel/functions": "^3.9.8"
+    "@vercel/functions": "^3.9.8",
+    "@composio/core": "^0.18.1",
+    "@vercel/blob": "^1.1.1"
   }
 }
